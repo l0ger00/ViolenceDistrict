@@ -24,8 +24,8 @@ local Cfg = {
         -- AJUSTE AQUI: 
         -- 'v0' = Velocidade da lança (Aumentar faz a mira subir menos)
         -- 'heightMultiplier' = Controla diretamente a altura da mira (Diminua se estiver subindo muito, ex: 0.2 ou 0.4)
-        aura = { v0 = 165, g = 96.5, windup = 0.10, latency = 0.04, maxlead = 25, scale = 1.00, heightMultiplier = 0.4 },
-        normal = { v0 = 143, g = 96.05, windup = 0.10, latency = 0.04, maxlead = 45, scale = 1.10, heightMultiplier = 0.4 },
+        aura = { v0 = 165, g = 96.5, windup = 0.10, latency = 0.04, maxlead = 25, scale = 1.00, heightMultiplier = 0.2 },
+        normal = { v0 = 143, g = 96.05, windup = 0.10, latency = 0.04, maxlead = 45, scale = 1.10, heightMultiplier = 0.2 },
     }
 }
 
