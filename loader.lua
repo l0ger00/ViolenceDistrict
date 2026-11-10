@@ -17,7 +17,8 @@ local modulesToLoad = {
     "modules/espPlayer.lua",
     "modules/espGene.lua",
     "modules/aimBot.lua",
-    "modules/fpsBoost.lua"
+    "modules/fpsBoost.lua",
+    "modules/veilMode.lua" -- <-- Novo módulo Veil Mode adicionado
 }
 
 local function formatName(path)
