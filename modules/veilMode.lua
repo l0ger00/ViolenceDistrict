@@ -1,62 +1,39 @@
 -- ============================================================================
--- MÓDULO: VEIL MODE (MAGIC SPEAR AIM ASSIST) - CORRIGIDO E LIMPO
+-- MÓDULO: VEIL MODE (AIM ASSIST COM BALÍSTICA AVANÇADA)
 -- Arquivo: modules/veilMode.lua
 -- ============================================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
-local LP = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
 
 _G.FeatureState = _G.FeatureState or {}
 _G.FeatureState.veilMode = _G.FeatureState.veilMode or false
 
 _G.Keybinds = _G.Keybinds or {
-    VeilModeKey = Enum.KeyCode.V
+    VeilModeKey = Enum.KeyCode.V -- Tecla dedicada para ativar/desativar o Veil Mode
 }
 
 local Cfg = {
     MaxDistance = 500,
-    FovRadius = 90,
+    FovRadius = 120,
     PROF = {
-        aura = {
-            v0 = 165, g = 96.5,
-            windup = 0.10, latency = 0.04,
-            maxlead = 25, scale = 1.00,
-        },
-        normal = {
-            v0 = 143, g = 96.05,
-            windup = 0.10, latency = 0.04,
-            maxlead = 45, scale = 1.10,
-        },
-    },
+        aura = { v0 = 165, g = 96.5, windup = 0.10, latency = 0.04, maxlead = 25, scale = 1.00 },
+        normal = { v0 = 143, g = 96.05, windup = 0.10, latency = 0.04, maxlead = 45, scale = 1.10 },
+    }
 }
 
-local State = { target = nil, lookVector = nil }
 local velHistory = {}
-
--- Busca segura do RemoteEvent do Veil Spearthrow com feedback no console
-local Veil_Spearthrow = nil
-local successRemote, errRemote = pcall(function()
-    local remotes = ReplicatedStorage:WaitForChild("Remotes", 5)
-    local killers = remotes and remotes:WaitForChild("Killers", 5)
-    local veil = killers and killers:WaitForChild("Veil", 5)
-    Veil_Spearthrow = veil and veil:WaitForChild("Spearthrow", 5)
-end)
-
-if not Veil_Spearthrow then
-    warn("⚠️ [Veil Mode] Remote 'Spearthrow' não encontrado automaticamente. Verifique se o caminho no jogo mudou.")
-else
-    print("🎯 [Veil Mode] Remote 'Spearthrow' mapeado com sucesso!")
-end
-
--- Cache de Ping
 local cachedPing = 0.08
+
+-- Cache de Ping leve para precisão balística
 task.spawn(function()
     while true do
         pcall(function()
-            local p = LP and LP:GetNetworkPing()
+            local p = LocalPlayer and LocalPlayer:GetNetworkPing()
             if typeof(p) == "number" then
                 cachedPing = math.clamp(p, 0, 0.35)
             end
@@ -86,55 +63,36 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 --------------------------------------------------------------------------------
--- FUNÇÕES AUXILIARES
+-- FUNÇÕES DE VALIDAÇÃO E BALÍSTICA
 --------------------------------------------------------------------------------
-local function isSurvivor(player)
-    if not player or player == LP then return false end
-    if not player.Team then return false end
-    local success, t = pcall(function() return player.Team.Name:lower() end)
-    if not success or not t then return false end
-    if t:find("spectator") or t:find("lobby") or t:find("killer") then return false end
-    return t:find("survivor") ~= nil
-end
-
-local function isKnockedOrHooked(c)
-    if not c then return false end
-    return c:GetAttribute("Knocked") == true or c:GetAttribute("HookProgressDepleting") == true
-end
-
-local function getTargetPosition(character)
-    if not character then return nil end
-    local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
-    if torso and torso:IsA("BasePart") then return torso.Position end
-    local head = character:FindFirstChild("Head")
-    if head and head:IsA("BasePart") then return head.Position end
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if hrp and hrp:IsA("BasePart") then return hrp.Position end
-    return nil
-end
-
-local function worldToScreen(pos)
-    if typeof(pos) ~= "Vector3" then return Vector2.zero, false end
-    local cam = workspace.CurrentCamera
-    if not cam then return Vector2.zero, false end
-    local sp, on = cam:WorldToScreenPoint(pos)
-    if sp.Z <= 0 then return Vector2.new(sp.X, sp.Y), false end
-    return Vector2.new(sp.X, sp.Y), on
+local function isValidTarget(player)
+    if not player or player == LocalPlayer then return false end
+    local char = player.Character
+    if not char then return false end
+    
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hum or hum.Health <= 0 or not hrp then return false end
+    
+    if player.Team then
+        local success, teamName = pcall(function() return player.Team.Name:lower() end)
+        if success and teamName and (teamName:find("spectator") or teamName:find("lobby")) then 
+            return false 
+        end
+    end
+    
+    return true
 end
 
 local function solvePitch(p, d, dy)
     d = math.max(d, 0.1)
     local s2 = p.v0 * p.v0
     local root = s2 * s2 - p.g * (p.g * d * d + 2 * dy * s2)
-    local outOfRange = false
-    if root < 0 then
-        root = 0
-        outOfRange = true
-    end
+    if root < 0 then root = 0 end
     local tanTheta = (s2 - math.sqrt(root)) / (p.g * d)
     local theta = math.atan(tanTheta)
     local t = d / (p.v0 * math.cos(theta))
-    return theta, outOfRange, t
+    return theta, false, t
 end
 
 local function getCharacterVelocity(char)
@@ -144,15 +102,16 @@ local function getCharacterVelocity(char)
     local now = os.clock()
     local last = velHistory[char]
     local measured = Vector3.zero
+
     if last and now - last.t > 0.02 then
         measured = (root.Position - last.pos) / (now - last.t)
-        if measured.Magnitude > 150 then
-            measured = last.smooth or Vector3.zero
-        end
+        if measured.Magnitude > 150 then measured = last.smooth or Vector3.zero end
     end
+
     local smooth = last and last.smooth or measured
     smooth = smooth:Lerp(measured, 0.65)
     velHistory[char] = { pos = root.Position, t = now, smooth = smooth }
+
     if smooth.Magnitude < 1 then return Vector3.zero end
     return Vector3.new(smooth.X, 0, smooth.Z)
 end
@@ -162,39 +121,36 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 --------------------------------------------------------------------------------
--- LOOP PRINCIPAL DE CÁLCULO
+-- LOOP DE MIRA COM BALÍSTICA E PREVISÃO (RENDERSTEPPED)
 --------------------------------------------------------------------------------
 RunService.RenderStepped:Connect(function()
-    if not (_G.FeatureState and _G.FeatureState.veilMode) then
-        State.target = nil
-        State.lookVector = nil
-        return
-    end
+    if not (_G.FeatureState and _G.FeatureState.veilMode) then return end
 
-    local cam = workspace.CurrentCamera
-    if not cam then return end
-    local char = LP and LP.Character
+    local char = LocalPlayer and LocalPlayer.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
+    if not Camera then return end
 
-    local center = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
-    local nearest = nil
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local nearestTargetHRP = nil
     local bestDist = math.huge
 
+    -- 1. Encontra o sobrevivente mais próximo dentro do FOV
     for _, p in ipairs(Players:GetPlayers()) do
-        if isSurvivor(p) then
-            local pc = p.Character
-            if pc and pc:IsDescendantOf(workspace) and not isKnockedOrHooked(pc) then
-                local hum = pc:FindFirstChildOfClass("Humanoid")
-                local pos = getTargetPosition(pc)
-                if hum and hum.Health > 0 and typeof(pos) == "Vector3" then
-                    local sp, on = worldToScreen(pos)
-                    if on then
-                        local sd = (sp - center).Magnitude
-                        if sd <= Cfg.FovRadius and sd < bestDist then
-                            bestDist = sd
-                            nearest = p
+        if isValidTarget(p) then
+            local targetChar = p.Character
+            local targetHRP = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+            
+            if targetHRP then
+                local distWorld = (targetHRP.Position - hrp.Position).Magnitude
+                if distWorld <= Cfg.MaxDistance then
+                    local sp, onScreen = Camera:WorldToScreenPoint(targetHRP.Position)
+                    if onScreen then
+                        local screenDist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+                        if screenDist <= Cfg.FovRadius and screenDist < bestDist then
+                            bestDist = screenDist
+                            nearestTargetHRP = targetHRP
                         end
                     end
                 end
@@ -202,11 +158,11 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    if nearest and nearest.Character then
-        local tp = getTargetPosition(nearest.Character)
-        if typeof(tp) == "Vector3" then
-            local hand = char:FindFirstChild("Right Arm") or char:FindFirstChild("RightHand")
-            local origin = (hand and hand:IsA("BasePart")) and hand.Position or hrp.Position
+    -- 2. Aplica o cálculo balístico avançado de lançamento e move a câmera perfeitamente
+    if nearestTargetHRP then
+        pcall(function()
+            local origin = hrp.Position
+            local tp = nearestTargetHRP.Position
             local dir = tp - origin
             local dist = dir.Magnitude
 
@@ -218,15 +174,15 @@ RunService.RenderStepped:Connect(function()
                 local _, _, tFlight = solvePitch(prof, h0.Magnitude, dir.Y)
 
                 local aimPoint = tp
-                local vel = getCharacterVelocity(nearest.Character)
+                local targetChar = nearestTargetHRP.Parent
+                local vel = getCharacterVelocity(targetChar)
+
                 if vel.Magnitude > 0.5 then
                     local delay = tFlight + prof.windup + cachedPing + prof.latency
                     for i = 1, 2 do
                         local lead = vel * delay * prof.scale
                         local maxLead = math.clamp(dist * 0.6, 3, prof.maxlead)
-                        if lead.Magnitude > maxLead then
-                            lead = lead.Unit * maxLead
-                        end
+                        if lead.Magnitude > maxLead then lead = lead.Unit * maxLead end
                         aimPoint = tp + lead
                         local ad = aimPoint - origin
                         local ah = Vector3.new(ad.X, 0, ad.Z)
@@ -235,47 +191,11 @@ RunService.RenderStepped:Connect(function()
                     end
                 end
 
-                local adir = aimPoint - origin
-                local ah = Vector3.new(adir.X, 0, adir.Z)
-                local ahDist = ah.Magnitude
-                local pitch = solvePitch(prof, ahDist, adir.Y)
-                if ahDist > 0.001 then
-                    State.lookVector = ah.Unit * math.cos(pitch) + Vector3.new(0, math.sin(pitch), 0)
-                else
-                    State.lookVector = adir.Unit
-                end
-                State.target = nearest
+                -- Posiciona a mira da câmera diretamente no ponto balístico calculado
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, aimPoint)
             end
-        end
-    else
-        State.target = nil
-        State.lookVector = nil
+        end)
     end
 end)
 
---------------------------------------------------------------------------------
--- NAMECALL HOOK SEGURO
---------------------------------------------------------------------------------
-if Veil_Spearthrow and hookmetamethod and getnamecallmethod then
-    pcall(function()
-        local originalNamecall
-        originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-            local method = getnamecallmethod()
-            if method == "FireServer"
-                and rawequal(self, Veil_Spearthrow)
-                and (_G.FeatureState and _G.FeatureState.veilMode)
-                and typeof(State.lookVector) == "Vector3"
-            then
-                local args = table.pack(...)
-                if args.n >= 1 and typeof(args[1]) == "Vector3" then
-                    args[1] = State.lookVector
-                end
-                return originalNamecall(self, table.unpack(args, 1, args.n))
-            end
-            return originalNamecall(self, ...)
-        end)
-        print("🪄 [Veil Mode] Hook de Namecall instalado com segurança máxima!")
-    end)
-end
-
-print("🔮 Módulo Veil Mode carregado com sucesso!")
+print("🔮 Módulo Veil Mode (Balístico Direto) carregado com sucesso!")
