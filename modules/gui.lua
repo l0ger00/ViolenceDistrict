@@ -89,6 +89,7 @@ _G.CreateGUIToggle("ESP Player", 32, "espPlayer")
 _G.CreateGUIToggle("ESP Generator", 64, "espGenerator")
 _G.CreateGUIToggle("Progresso Gen (%)", 96, "generatorProgress")
 _G.CreateGUIToggle("Aim Assist", 128, "aimBot")
+_G.CreateGUIToggle("FPS Boost", 160, "fpsBoost") -- <-- Novo botão (lembre de aumentar a altura do 'panel' de 170 para 200 se precisar de espaço)
 
 -- Função para alternar o estado do painel e gerenciar o comportamento do mouse limpidamente
 local function toggleMenu()
