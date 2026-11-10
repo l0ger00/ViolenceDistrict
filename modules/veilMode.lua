@@ -1,5 +1,5 @@
 -- ============================================================================
--- MÓDULO: VEIL MODE (MAGIC SPEAR AIM ASSIST)
+-- MÓDULO: VEIL MODE (MAGIC SPEAR AIM ASSIST) - CORRIGIDO E LIMPO
 -- Arquivo: modules/veilMode.lua
 -- ============================================================================
 
@@ -13,13 +13,12 @@ _G.FeatureState = _G.FeatureState or {}
 _G.FeatureState.veilMode = _G.FeatureState.veilMode or false
 
 _G.Keybinds = _G.Keybinds or {
-    VeilModeKey = Enum.KeyCode.V -- Tecla de atalho dedicada para alternar o Veil Mode
+    VeilModeKey = Enum.KeyCode.V
 }
 
 local Cfg = {
     MaxDistance = 500,
     FovRadius = 90,
-    VisualRange = { aura = 285, normal = 215 },
     PROF = {
         aura = {
             v0 = 165, g = 96.5,
@@ -37,22 +36,27 @@ local Cfg = {
 local State = { target = nil, lookVector = nil }
 local velHistory = {}
 
--- Busca remota do RemoteEvent do Veil Spearthrow
+-- Busca segura do RemoteEvent do Veil Spearthrow com feedback no console
 local Veil_Spearthrow = nil
-pcall(function()
-    Veil_Spearthrow = ReplicatedStorage
-        :WaitForChild("Remotes", 10)
-        :WaitForChild("Killers", 10)
-        :WaitForChild("Veil", 10)
-        :WaitForChild("Spearthrow", 10)
+local successRemote, errRemote = pcall(function()
+    local remotes = ReplicatedStorage:WaitForChild("Remotes", 5)
+    local killers = remotes and remotes:WaitForChild("Killers", 5)
+    local veil = killers and killers:WaitForChild("Veil", 5)
+    Veil_Spearthrow = veil and veil:WaitForChild("Spearthrow", 5)
 end)
 
--- Cache de Ping para prevenção de travamentos
+if not Veil_Spearthrow then
+    warn("⚠️ [Veil Mode] Remote 'Spearthrow' não encontrado automaticamente. Verifique se o caminho no jogo mudou.")
+else
+    print("🎯 [Veil Mode] Remote 'Spearthrow' mapeado com sucesso!")
+end
+
+-- Cache de Ping
 local cachedPing = 0.08
 task.spawn(function()
     while true do
         pcall(function()
-            local p = LP:GetNetworkPing()
+            local p = LP and LP:GetNetworkPing()
             if typeof(p) == "number" then
                 cachedPing = math.clamp(p, 0, 0.35)
             end
@@ -77,25 +81,25 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             local state = _G.FeatureState.veilMode
             _G.ShowNotify("Veil Mode: " .. (state and "ATIVADO 🟢" or "DESATIVADO 🔴"), state)
         end
+        print("🔮 [Veil Mode] Estado alterado para:", _G.FeatureState.veilMode)
     end
 end)
 
 --------------------------------------------------------------------------------
--- FUNÇÕES AUXILIARES DE BALÍSTICA E ALVOS
+-- FUNÇÕES AUXILIARES
 --------------------------------------------------------------------------------
 local function isSurvivor(player)
     if not player or player == LP then return false end
     if not player.Team then return false end
-    local t = player.Team.Name:lower()
+    local success, t = pcall(function() return player.Team.Name:lower() end)
+    if not success or not t then return false end
     if t:find("spectator") or t:find("lobby") or t:find("killer") then return false end
     return t:find("survivor") ~= nil
 end
 
 local function isKnockedOrHooked(c)
     if not c then return false end
-    if c:GetAttribute("Knocked") == true then return true end
-    if c:GetAttribute("HookProgressDepleting") == true then return true end
-    return false
+    return c:GetAttribute("Knocked") == true or c:GetAttribute("HookProgressDepleting") == true
 end
 
 local function getTargetPosition(character)
@@ -134,7 +138,8 @@ local function solvePitch(p, d, dy)
 end
 
 local function getCharacterVelocity(char)
-    local root = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
+    if not char then return Vector3.zero end
+    local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
     if not root or not root:IsA("BasePart") then return Vector3.zero end
     local now = os.clock()
     local last = velHistory[char]
@@ -153,11 +158,11 @@ local function getCharacterVelocity(char)
 end
 
 Players.PlayerRemoving:Connect(function(p)
-    if p.Character then velHistory[p.Character] = nil end
+    if p and p.Character then velHistory[p.Character] = nil end
 end)
 
 --------------------------------------------------------------------------------
--- LOOP PRINCIPAL DE CÁLCULO E MIRA
+-- LOOP PRINCIPAL DE CÁLCULO
 --------------------------------------------------------------------------------
 RunService.RenderStepped:Connect(function()
     if not (_G.FeatureState and _G.FeatureState.veilMode) then
@@ -168,7 +173,7 @@ RunService.RenderStepped:Connect(function()
 
     local cam = workspace.CurrentCamera
     if not cam then return end
-    local char = LP.Character
+    local char = LP and LP.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
@@ -249,26 +254,28 @@ RunService.RenderStepped:Connect(function()
 end)
 
 --------------------------------------------------------------------------------
--- NAMECALL HOOK (INTERCEPÇÃO DA LANÇA DO VEIL)
+-- NAMECALL HOOK SEGURO
 --------------------------------------------------------------------------------
-if Veil_Spearthrow then
-    local originalNamecall
-    originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        if method == "FireServer"
-            and rawequal(self, Veil_Spearthrow)
-            and (_G.FeatureState and _G.FeatureState.veilMode)
-            and typeof(State.lookVector) == "Vector3"
-        then
-            local args = table.pack(...)
-            if args.n >= 1 and typeof(args[1]) == "Vector3" then
-                args[1] = State.lookVector
+if Veil_Spearthrow and hookmetamethod and getnamecallmethod then
+    pcall(function()
+        local originalNamecall
+        originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            if method == "FireServer"
+                and rawequal(self, Veil_Spearthrow)
+                and (_G.FeatureState and _G.FeatureState.veilMode)
+                and typeof(State.lookVector) == "Vector3"
+            then
+                local args = table.pack(...)
+                if args.n >= 1 and typeof(args[1]) == "Vector3" then
+                    args[1] = State.lookVector
+                end
+                return originalNamecall(self, table.unpack(args, 1, args.n))
             end
-            return originalNamecall(self, table.unpack(args, 1, args.n))
-        end
-        return originalNamecall(self, ...)
+            return originalNamecall(self, ...)
+        end)
+        print("🪄 [Veil Mode] Hook de Namecall instalado com segurança máxima!")
     end)
-    print("🪄 [Veil Mode] Hook de Namecall instalado com sucesso!")
 end
 
-print("🔮 Módulo Veil Mode inicializado!")
+print("🔮 Módulo Veil Mode carregado com sucesso!")
