@@ -1,11 +1,12 @@
 -- ============================================================================
--- MÓDULO: AIMBOT / AIM ASSIST COM PREVISÃO BALÍSTICA
+-- MÓDULO OTIMIZADO: AIMBOT / AIM ASSIST COM PREVISÃO BALÍSTICA E KEYBIND
 -- Arquivo: modules/aimBot.lua
 -- ============================================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
@@ -15,7 +16,6 @@ local Camera = Workspace.CurrentCamera
 local Cfg = {
     MaxDistance = 400,
     FovRadius = 100,
-    -- Perfis de Física de Projétil (Velocidade v0, Gravidade g, Latência)
     PROF = {
         v0 = 150,
         g = 96.05,
@@ -29,8 +29,26 @@ local Cfg = {
 _G.FeatureState = _G.FeatureState or {}
 _G.FeatureState.aimBot = _G.FeatureState.aimBot or false
 
-local State = { target = nil, lookVector = nil }
+_G.Keybinds = _G.Keybinds or {
+    AimAssist = Enum.KeyCode.E
+}
+
 local velHistory = {}
+
+--------------------------------------------------------------------------------
+-- LISTENER DE TECLA DE ATALHO (KEYBIND)
+--------------------------------------------------------------------------------
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    -- Se a tecla pressionada for a configurada para o Aim Assist
+    if input.KeyCode == _G.Keybinds.AimAssist then
+        _G.FeatureState.aimBot = not _G.FeatureState.aimBot
+        
+        -- Feedback visual rápido no chat/console interno para confirmar a ativação
+        local statusText = _G.FeatureState.aimBot and "LIGADO 🟢" : "DESLIGADO 🔴"
+        print("🎯 Aim Assist alternado via Tecla: " .. statusText)
+    end
+end)
 
 --------------------------------------------------------------------------------
 -- LÓGICA MATEMÁTICA E BALÍSTICA
@@ -82,11 +100,7 @@ end
 -- LOOP DE SELEÇÃO E CÁLCULO DE MIRA (RENDERSTEPPED)
 --------------------------------------------------------------------------------
 RunService.RenderStepped:Connect(function()
-    if not _G.FeatureState.aimBot then
-        State.target = nil
-        State.lookVector = nil
-        return
-    end
+    if not _G.FeatureState.aimBot then return end
 
     local char = LocalPlayer.Character
     if not char then return end
@@ -97,7 +111,6 @@ RunService.RenderStepped:Connect(function()
     local nearest = nil
     local bestDist = math.huge
 
-    -- Busca o alvo mais próximo dentro do FOV na tela
     for _, p in ipairs(Players:GetPlayers()) do
         if isSurvivor(p) and p.Character then
             local hum = p.Character:FindFirstChildOfClass("Humanoid")
@@ -115,7 +128,6 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- Calcula a trajetória preditiva para acertar o alvo
     if nearest and nearest.Character then
         local targetHRP = nearest.Character:FindFirstChild("HumanoidRootPart")
         if targetHRP then
@@ -146,12 +158,10 @@ RunService.RenderStepped:Connect(function()
                     end
                 end
 
-                -- Suaviza e ajusta a câmera para a direção prevista
                 Camera.CFrame = CFrame.new(Camera.CFrame.Position, aimPoint)
-                State.target = nearest
             end
         end
     end
 end)
 
-print("🎯 Módulo AimBot inicializado com sucesso!")
+print("🎯 Módulo AimBot com Keybind customizável carregado!")
