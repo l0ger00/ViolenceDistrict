@@ -94,6 +94,7 @@ _G.CreateGUIToggle("ESP Generator", 64, "espGenerator")
 _G.CreateGUIToggle("Progresso Gen (%)", 96, "generatorProgress")
 _G.CreateGUIToggle("Aim Assist", 128, "aimBot")
 _G.CreateGUIToggle("FPS Boost", 160, "fpsBoost")
+_G.CreateGUIToggle("Veil Mode", 192, "veilMode") -- <-- Novo botão Veil Mode
 
 -- Botão especial para mostrar a Keybind do Aim Assist
 local bindBtn = Instance.new("TextButton", panel)
