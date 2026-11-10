@@ -1,5 +1,5 @@
 -- ============================================================================
--- MÓDULO: VEIL MODE (AIM ASSIST COM ARCO BALÍSTICO AJUSTÁVEL)
+-- MÓDULO: VEIL MODE (CALIBRAGEM DIRETA DE VELOCIDADE DO PROJÉTIL)
 -- Arquivo: modules/veilMode.lua
 -- ============================================================================
 
@@ -21,11 +21,11 @@ local Cfg = {
     MaxDistance = 500,
     FovRadius = 120,
     PROF = {
-        -- AJUSTE AQUI: 
-        -- 'v0' = Velocidade da lança (Aumentar faz a mira subir menos)
-        -- 'heightMultiplier' = Controla diretamente a altura da mira (Diminua se estiver subindo muito, ex: 0.2 ou 0.4)
-        aura = { v0 = 165, g = 96.5, windup = 0.10, latency = 0.04, maxlead = 25, scale = 1.00, heightMultiplier = 0.7 },
-        normal = { v0 = 143, g = 96.05, windup = 0.10, latency = 0.04, maxlead = 45, scale = 1.10, heightMultiplier = 0.7 },
+        -- 🎯 CALIBRE A VELOCIDADE AQUI:
+        -- Se a mira ainda estiver subindo muito, aumente este 'v0' (ex: 300, 400, 500).
+        -- Quanto maior o v0, mais reta (próxima de um aim assist comum) a mira fica.
+        aura = { v0 = 400, g = 96.5, windup = 0.10, latency = 0.04, maxlead = 25, scale = 1.00 },
+        normal = { v0 = 400, g = 96.05, windup = 0.10, latency = 0.04, maxlead = 45, scale = 1.10 },
     }
 }
 
@@ -189,10 +189,7 @@ RunService.RenderStepped:Connect(function()
                 local adir = aimPoint - origin
                 local ah = Vector3.new(adir.X, 0, adir.Z)
                 local ahDist = ah.Magnitude
-                
-                -- Aplica o multiplicador de altura configurado no topo do script
-                local adjustedDy = adir.Y * (prof.heightMultiplier or 0.4)
-                local pitch = solvePitch(prof, ahDist, adjustedDy)
+                local pitch = solvePitch(prof, ahDist, adir.Y)
                 
                 local lookVector
                 if ahDist > 0.001 then
@@ -207,4 +204,4 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-print("🔮 Módulo Veil Mode (Com Multiplicador de Altura) carregado com sucesso!")
+print("🔮 Módulo Veil Mode (Calibragem de Velocidade) carregado com sucesso!")
