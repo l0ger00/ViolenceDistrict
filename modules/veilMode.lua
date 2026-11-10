@@ -1,5 +1,5 @@
 -- ============================================================================
--- MÓDULO: VEIL MODE (AIM ASSIST COM BALÍSTICA AVANÇADA)
+-- MÓDULO: VEIL MODE (AIM ASSIST COM ARCO BALÍSTICO REAL)
 -- Arquivo: modules/veilMode.lua
 -- ============================================================================
 
@@ -14,7 +14,7 @@ _G.FeatureState = _G.FeatureState or {}
 _G.FeatureState.veilMode = _G.FeatureState.veilMode or false
 
 _G.Keybinds = _G.Keybinds or {
-    VeilModeKey = Enum.KeyCode.V -- Tecla dedicada para ativar/desativar o Veil Mode
+    VeilModeKey = Enum.KeyCode.V
 }
 
 local Cfg = {
@@ -29,7 +29,6 @@ local Cfg = {
 local velHistory = {}
 local cachedPing = 0.08
 
--- Cache de Ping leve para precisão balística
 task.spawn(function()
     while true do
         pcall(function()
@@ -88,11 +87,15 @@ local function solvePitch(p, d, dy)
     d = math.max(d, 0.1)
     local s2 = p.v0 * p.v0
     local root = s2 * s2 - p.g * (p.g * d * d + 2 * dy * s2)
-    if root < 0 then root = 0 end
+    local outOfRange = false
+    if root < 0 then
+        root = 0
+        outOfRange = true
+    end
     local tanTheta = (s2 - math.sqrt(root)) / (p.g * d)
     local theta = math.atan(tanTheta)
     local t = d / (p.v0 * math.cos(theta))
-    return theta, false, t
+    return theta, outOfRange, t
 end
 
 local function getCharacterVelocity(char)
@@ -121,7 +124,7 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 --------------------------------------------------------------------------------
--- LOOP DE MIRA COM BALÍSTICA E PREVISÃO (RENDERSTEPPED)
+-- LOOP DE MIRA COM ARCO BALÍSTICO REAL (RENDERSTEPPED)
 --------------------------------------------------------------------------------
 RunService.RenderStepped:Connect(function()
     if not (_G.FeatureState and _G.FeatureState.veilMode) then return end
@@ -136,7 +139,6 @@ RunService.RenderStepped:Connect(function()
     local nearestTargetHRP = nil
     local bestDist = math.huge
 
-    -- 1. Encontra o sobrevivente mais próximo dentro do FOV
     for _, p in ipairs(Players:GetPlayers()) do
         if isValidTarget(p) then
             local targetChar = p.Character
@@ -158,7 +160,6 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- 2. Aplica o cálculo balístico avançado de lançamento e move a câmera perfeitamente
     if nearestTargetHRP then
         pcall(function()
             local origin = hrp.Position
@@ -191,11 +192,25 @@ RunService.RenderStepped:Connect(function()
                     end
                 end
 
-                -- Posiciona a mira da câmera diretamente no ponto balístico calculado
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, aimPoint)
+                -- APLICAÇÃO CORRETA DO VETOR BALÍSTICO COM PITCH (ARCO)
+                local adir = aimPoint - origin
+                local ah = Vector3.new(adir.X, 0, adir.Z)
+                local ahDist = ah.Magnitude
+                local pitch = solvePitch(prof, ahDist, adir.Y)
+                
+                local lookVector
+                if ahDist > 0.001 then
+                    -- Soma a direção horizontal com o ângulo de elevação vertical calculado pela balística
+                    lookVector = ah.Unit * math.cos(pitch) + Vector3.new(0, math.sin(pitch), 0)
+                else
+                    lookVector = adir.Unit
+                end
+
+                -- Força a câmera a rotacionar considerando o arco parabólico real
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + lookVector)
             end
         end)
     end
 end)
 
-print("🔮 Módulo Veil Mode (Balístico Direto) carregado com sucesso!")
+print("🔮 Módulo Veil Mode (Balístico com Arco Real) carregado com sucesso!")
