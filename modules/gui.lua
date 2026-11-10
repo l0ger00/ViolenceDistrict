@@ -58,8 +58,7 @@ _G.CreateGUIToggle = function(name, posY, stateKey, callback)
     btn.TextSize = 10
     btn.AutoButtonColor = false
     
-    -- SOLUÇÃO CHAVE 1: Definir Modal = true força o Roblox a destravar o mouse 
-    -- e exibir o cursor enquanto o botão estiver visível na tela.
+    -- Propriedade Modal ajuda a focar o input na UI
     btn.Modal = true 
 
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
@@ -91,28 +90,35 @@ _G.CreateGUIToggle("ESP Generator", 64, "espGenerator")
 _G.CreateGUIToggle("Progresso Gen (%)", 96, "generatorProgress")
 _G.CreateGUIToggle("Aim Assist", 128, "aimBot")
 
--- SOLUÇÃO CHAVE 2: Controle ativo de estado do ponteiro
-local function updateMouseState()
+-- Função para alternar o estado do painel e gerenciar o comportamento do mouse limpidamente
+local function toggleMenu()
+    panel.Visible = not panel.Visible
+    
+    if panel.Visible then
+        -- Quando abre: Libera o mouse e mostra o cursor
+        UserInputService.MouseIconEnabled = true
+        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+    else
+        -- Quando fecha: Devolve o controle total para o jogo (restaura comportamento padrão)
+        UserInputService.MouseIconEnabled = false
+        UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+    end
+end
+
+-- Atalho de Tecla (M)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Config.MenuKey then
+        toggleMenu()
+    end
+end)
+
+-- Garante o travamento/comportamento correto do mouse a cada frame SE o menu estiver aberto
+RunService.RenderStepped:Connect(function()
     if panel.Visible then
         UserInputService.MouseIconEnabled = true
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
     end
-end
-
--- Alterna a visibilidade com a tecla M
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == Config.MenuKey then
-        panel.Visible = not panel.Visible
-        updateMouseState()
-    end
 end)
 
--- Garante que o mouse continue destravado a cada frame enquanto o menu estiver aberto
-RunService.RenderStepped:Connect(function()
-    if panel.Visible then
-        updateMouseState()
-    end
-end)
-
-print("🖥️ Módulo GUI inicializado com desbloqueio de mouse!")
+print("🖥️ Módulo GUI atualizado com controle inteligente de cursor!")
