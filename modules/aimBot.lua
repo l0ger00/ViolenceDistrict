@@ -1,5 +1,5 @@
 -- ============================================================================
--- MÓDULO OTIMIZADO: AIMBOT / AIM ASSIST COM PREVISÃO BALÍSTICA E KEYBIND
+-- MÓDULO OTIMIZADO: AIMBOT / AIM ASSIST COM DIAGNÓSTICO
 -- Arquivo: modules/aimBot.lua
 -- ============================================================================
 
@@ -14,8 +14,8 @@ local Camera = Workspace.CurrentCamera
 -- CONFIGURAÇÕES DO AIMBOT
 --------------------------------------------------------------------------------
 local Cfg = {
-    MaxDistance = 400,
-    FovRadius = 100,
+    MaxDistance = 500,
+    FovRadius = 250,
     PROF = {
         v0 = 150,
         g = 96.05,
@@ -40,40 +40,53 @@ local velHistory = {}
 --------------------------------------------------------------------------------
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    -- Se a tecla pressionada for a configurada para o Aim Assist
+    
     if input.KeyCode == _G.Keybinds.AimAssist then
         _G.FeatureState.aimBot = not _G.FeatureState.aimBot
         
-        -- Feedback visual rápido no chat/console interno para confirmar a ativação
-        local statusText = _G.FeatureState.aimBot and "LIGADO 🟢" : "DESLIGADO 🔴"
-        print("🎯 Aim Assist alternado via Tecla: " .. statusText)
+        if _G.SyncGUIToggle then
+            _G.SyncGUIToggle("aimBot")
+        end
+        
+        if _G.ShowNotify then
+            local state = _G.FeatureState.aimBot
+            _G.ShowNotify("Aim Assist: " .. (state and "ATIVADO 🟢" or "DESATIVADO 🔴"), state)
+        end
+        print("🎯 [AimBot] Estado alterado para:", _G.FeatureState.aimBot)
     end
 end)
 
 --------------------------------------------------------------------------------
--- LÓGICA MATEMÁTICA E BALÍSTICA
+-- LÓGICA DE DETECÇÃO DE ALVO (FLEXÍVEL)
 --------------------------------------------------------------------------------
-local function isSurvivor(player)
+local function isValidTarget(player)
     if not player or player == LocalPlayer then return false end
-    if not player.Team then return false end
-    local t = player.Team.Name:lower()
-    if t:find("spectator") or t:find("lobby") or t:find("killer") then return false end
-    return t:find("survivor") ~= nil
+    if not player.Character then return false end
+    
+    local hum = player.Character:FindFirstChildOfClass("Humanoid")
+    local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+    
+    if not hum or hum.Health <= 0 or not hrp then return false end
+    
+    if player.Team then
+        local t = player.Team.Name:lower()
+        if t:find("spectator") or t:find("lobby") then 
+            return false 
+        end
+    end
+    
+    return true
 end
 
 local function solvePitch(p, d, dy)
     d = math.max(d, 0.1)
     local s2 = p.v0 * p.v0
     local root = s2 * s2 - p.g * (p.g * d * d + 2 * dy * s2)
-    local outOfRange = false
-    if root < 0 then
-        root = 0
-        outOfRange = true
-    end
+    if root < 0 then root = 0 end
     local tanTheta = (s2 - math.sqrt(root)) / (p.g * d)
     local theta = math.atan(tanTheta)
     local t = d / (p.v0 * math.cos(theta))
-    return theta, outOfRange, t
+    return theta, false, t
 end
 
 local function getCharacterVelocity(char)
@@ -97,7 +110,7 @@ local function getCharacterVelocity(char)
 end
 
 --------------------------------------------------------------------------------
--- LOOP DE SELEÇÃO E CÁLCULO DE MIRA (RENDERSTEPPED)
+-- LOOP DE MIRA (RENDERSTEPPED)
 --------------------------------------------------------------------------------
 RunService.RenderStepped:Connect(function()
     if not _G.FeatureState.aimBot then return end
@@ -112,56 +125,52 @@ RunService.RenderStepped:Connect(function()
     local bestDist = math.huge
 
     for _, p in ipairs(Players:GetPlayers()) do
-        if isSurvivor(p) and p.Character then
-            local hum = p.Character:FindFirstChildOfClass("Humanoid")
-            local targetHRP = p.Character:FindFirstChild("HumanoidRootPart")
-            if hum and hum.Health > 0 and targetHRP then
-                local sp, onScreen = Camera:WorldToScreenPoint(targetHRP.Position)
-                if onScreen then
-                    local screenDist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-                    if screenDist <= Cfg.FovRadius and screenDist < bestDist then
-                        bestDist = screenDist
-                        nearest = p
-                    end
+        if isValidTarget(p) then
+            local targetHRP = p.Character.HumanoidRootPart
+            local sp, onScreen = Camera:WorldToScreenPoint(targetHRP.Position)
+            
+            if onScreen then
+                local screenDist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+                if screenDist <= Cfg.FovRadius and screenDist < bestDist then
+                    bestDist = screenDist
+                    nearest = p
                 end
             end
         end
     end
 
     if nearest and nearest.Character then
-        local targetHRP = nearest.Character:FindFirstChild("HumanoidRootPart")
-        if targetHRP then
-            local origin = hrp.Position
-            local tp = targetHRP.Position
-            local dir = tp - origin
-            local dist = dir.Magnitude
+        local targetHRP = nearest.Character.HumanoidRootPart
+        local origin = hrp.Position
+        local tp = targetHRP.Position
+        local dir = tp - origin
+        local dist = dir.Magnitude
 
-            if dist > 0.1 and dist <= Cfg.MaxDistance then
-                local prof = Cfg.PROF
-                local h0 = Vector3.new(dir.X, 0, dir.Z)
-                local _, _, tFlight = solvePitch(prof, h0.Magnitude, dir.Y)
+        if dist > 0.1 and dist <= Cfg.MaxDistance then
+            local prof = Cfg.PROF
+            local h0 = Vector3.new(dir.X, 0, dir.Z)
+            local _, _, tFlight = solvePitch(prof, h0.Magnitude, dir.Y)
 
-                local aimPoint = tp
-                local vel = getCharacterVelocity(nearest.Character)
+            local aimPoint = tp
+            local vel = getCharacterVelocity(nearest.Character)
 
-                if vel.Magnitude > 0.5 then
-                    local delay = tFlight + prof.windup + prof.latency
-                    for i = 1, 2 do
-                        local lead = vel * delay * prof.scale
-                        local maxLead = math.clamp(dist * 0.6, 3, prof.maxlead)
-                        if lead.Magnitude > maxLead then lead = lead.Unit * maxLead end
-                        aimPoint = tp + lead
-                        local ad = aimPoint - origin
-                        local ah = Vector3.new(ad.X, 0, ad.Z)
-                        local _, _, t2 = solvePitch(prof, math.max(ah.Magnitude, 0.1), ad.Y)
-                        delay = t2 + prof.windup + prof.latency
-                    end
+            if vel.Magnitude > 0.5 then
+                local delay = tFlight + prof.windup + prof.latency
+                for i = 1, 2 do
+                    local lead = vel * delay * prof.scale
+                    local maxLead = math.clamp(dist * 0.6, 3, prof.maxlead)
+                    if lead.Magnitude > maxLead then lead = lead.Unit * maxLead end
+                    aimPoint = tp + lead
+                    local ad = aimPoint - origin
+                    local ah = Vector3.new(ad.X, 0, ad.Z)
+                    local _, _, t2 = solvePitch(prof, math.max(ah.Magnitude, 0.1), ad.Y)
+                    delay = t2 + prof.windup + prof.latency
                 end
-
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, aimPoint)
             end
+
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, aimPoint)
         end
     end
 end)
 
-print("🎯 Módulo AimBot com Keybind customizável carregado!")
+print("🎯 Módulo AimBot com Diagnóstico carregado!")
