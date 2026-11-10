@@ -1,5 +1,5 @@
 -- ============================================================================
--- MÓDULO: VEIL MODE (AIM ASSIST COM ARCO BALÍSTICO REAL)
+-- MÓDULO: VEIL MODE (AIM ASSIST COM ARCO BALÍSTICO AJUSTÁVEL)
 -- Arquivo: modules/veilMode.lua
 -- ============================================================================
 
@@ -21,8 +21,11 @@ local Cfg = {
     MaxDistance = 500,
     FovRadius = 120,
     PROF = {
-        aura = { v0 = 165, g = 96.5, windup = 0.10, latency = 0.04, maxlead = 25, scale = 1.00 },
-        normal = { v0 = 143, g = 96.05, windup = 0.10, latency = 0.04, maxlead = 45, scale = 1.10 },
+        -- AJUSTE AQUI: 
+        -- 'v0' = Velocidade da lança (Aumentar faz a mira subir menos)
+        -- 'heightMultiplier' = Controla diretamente a altura da mira (Diminua se estiver subindo muito, ex: 0.2 ou 0.4)
+        aura = { v0 = 165, g = 96.5, windup = 0.10, latency = 0.04, maxlead = 25, scale = 1.00, heightMultiplier = 0.4 },
+        normal = { v0 = 143, g = 96.05, windup = 0.10, latency = 0.04, maxlead = 45, scale = 1.10, heightMultiplier = 0.4 },
     }
 }
 
@@ -41,9 +44,6 @@ task.spawn(function()
     end
 end)
 
---------------------------------------------------------------------------------
--- LISTENER DE TECLA DE ATALHO (KEYBIND)
---------------------------------------------------------------------------------
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == _G.Keybinds.VeilModeKey then
@@ -61,9 +61,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
---------------------------------------------------------------------------------
--- FUNÇÕES DE VALIDAÇÃO E BALÍSTICA
---------------------------------------------------------------------------------
 local function isValidTarget(player)
     if not player or player == LocalPlayer then return false end
     local char = player.Character
@@ -123,9 +120,6 @@ Players.PlayerRemoving:Connect(function(p)
     if p and p.Character then velHistory[p.Character] = nil end
 end)
 
---------------------------------------------------------------------------------
--- LOOP DE MIRA COM ARCO BALÍSTICO REAL (RENDERSTEPPED)
---------------------------------------------------------------------------------
 RunService.RenderStepped:Connect(function()
     if not (_G.FeatureState and _G.FeatureState.veilMode) then return end
 
@@ -192,25 +186,25 @@ RunService.RenderStepped:Connect(function()
                     end
                 end
 
-                -- APLICAÇÃO CORRETA DO VETOR BALÍSTICO COM PITCH (ARCO)
                 local adir = aimPoint - origin
                 local ah = Vector3.new(adir.X, 0, adir.Z)
                 local ahDist = ah.Magnitude
-                local pitch = solvePitch(prof, ahDist, adir.Y)
+                
+                -- Aplica o multiplicador de altura configurado no topo do script
+                local adjustedDy = adir.Y * (prof.heightMultiplier or 0.4)
+                local pitch = solvePitch(prof, ahDist, adjustedDy)
                 
                 local lookVector
                 if ahDist > 0.001 then
-                    -- Soma a direção horizontal com o ângulo de elevação vertical calculado pela balística
                     lookVector = ah.Unit * math.cos(pitch) + Vector3.new(0, math.sin(pitch), 0)
                 else
                     lookVector = adir.Unit
                 end
 
-                -- Força a câmera a rotacionar considerando o arco parabólico real
                 Camera.CFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + lookVector)
             end
         end)
     end
 end)
 
-print("🔮 Módulo Veil Mode (Balístico com Arco Real) carregado com sucesso!")
+print("🔮 Módulo Veil Mode (Com Multiplicador de Altura) carregado com sucesso!")
