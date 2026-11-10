@@ -1,5 +1,5 @@
 -- ============================================================================
--- MÓDULO: FPS BOOST (OTIMIZAÇÃO E REMOÇÃO DE TEXTURAS)
+-- MÓDULO OTIMIZADO: FPS BOOST + FULL BRIGHT + NO FOG
 -- Arquivo: modules/fpsBoost.lua
 -- ============================================================================
 
@@ -12,44 +12,60 @@ _G.FeatureState.fpsBoost = _G.FeatureState.fpsBoost or false
 
 local wasEnabled = false
 
--- Função para aplicar as otimizações visuais e remoção de texturas
-local function applyBoost()
-    print("⚡ [FPS Boost] Aplicando otimizações visuais...")
+-- Salva o estado original da Lighting para restaurar caso desative o boost
+local originalLighting = {
+    Brightness = Lighting.Brightness,
+    ClockTime = Lighting.ClockTime,
+    GlobalShadows = Lighting.GlobalShadows,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+    FogEnd = Lighting.FogEnd
+}
 
-    -- 1. Otimizar Iluminação (Remove efeitos pesados de pós-processamento)
+-- Função para aplicar o Boost, Full Bright e No Fog
+local function applyBoost()
+    print("⚡ [FPS Boost] Aplicando otimizações, Full Bright e No Fog...")
+
+    -- 1. Full Bright & No Fog (Iluminação máxima e remoção de neblina)
     pcall(function()
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14 -- Trava o sol ao meio-dia para luz constante
+        Lighting.GlobalShadows = false
+        Lighting.OutdoorAmbient = Color3.fromRGB(200, 200, 200)
+        Lighting.FogEnd = 100000 -- Joga a neblina para infinitamente longe
+
+        -- Desativa efeitos pesados de pós-processamento, atmosfera e skybox escura
         for _, child in ipairs(Lighting:GetChildren()) do
             if child:IsA("PostEffect") or child:IsA("Atmosphere") or child:IsA("Sky") then
                 child.Enabled = false
             end
         end
-        Lighting.GlobalShadows = false
-        Lighting.Brightness = 2
     end)
 
-    -- 2. Otimizar Texturas e Materiais no Workspace
+    -- 2. Otimizar Texturas, Materiais e Partículas no Workspace
     pcall(function()
         for _, obj in ipairs(Workspace:GetDescendants()) do
             if obj:IsA("BasePart") then
-                -- Transforma materiais complexos em SmoothPlastic para poupar renderização
                 obj.Material = Enum.Material.SmoothPlastic
                 obj.Reflectance = 0
             elseif obj:IsA("Texture") or obj:IsA("Decal") then
-                -- Desativa texturas coladas em paredes/objetos
                 obj.Transparency = 1
             elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Fire") or obj:IsA("Smoke") then
-                -- Desativa partículas pesadas
                 obj.Enabled = false
             end
         end
     end)
 end
 
--- Função para restaurar o estado padrão caso desative
+-- Função para restaurar o estado padrão da iluminação caso desative
 local function removeBoost()
     print("⚡ [FPS Boost] Desativando otimizações (restaurando padrões)...")
     pcall(function()
-        Lighting.GlobalShadows = true
+        Lighting.Brightness = originalLighting.Brightness
+        Lighting.ClockTime = originalLighting.ClockTime
+        Lighting.GlobalShadows = originalLighting.GlobalShadows
+        Lighting.OutdoorAmbient = originalLighting.OutdoorAmbient
+        Lighting.FogEnd = originalLighting.FogEnd
+
         for _, child in ipairs(Lighting:GetChildren()) do
             if child:IsA("PostEffect") or child:IsA("Atmosphere") or child:IsA("Sky") then
                 child.Enabled = true
@@ -71,4 +87,4 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
-print("🚀 Módulo FPS Boost inicializado!")
+print("🚀 Módulo FPS Boost (com Full Bright & No Fog) carregado!")
