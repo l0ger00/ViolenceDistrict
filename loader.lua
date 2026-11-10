@@ -11,31 +11,29 @@ _G.__VD_LOADER_ACTIVE = true
 
 local baseUrl = "https://raw.githubusercontent.com/l0ger00/ViolenceDistrict/main/"
 
--- Lista de módulos que serão carregados em ordem
 local modulesToLoad = {
     "modules/getRole.lua",
+    "modules/gui.lua",
     "modules/espPlayer.lua",
     "modules/espGene.lua",
     "modules/aimBot.lua"
 }
 
 local function formatName(path)
-    local name = path:match("([^/]+)%.lua$") or path
-    return name
+    return path:match("([^/]+)%.lua$") or path
 end
 
-print("🔄 Iniciando carregamento dos módulos do Violence District...")
+print("🔄 Carregando módulos do Violence District...")
 
--- Loop para baixar e executar cada módulo com tratamento de erros (pcall)
 for _, modulePath in ipairs(modulesToLoad) do
     local success, err = pcall(function()
         loadstring(game:HttpGet(baseUrl .. modulePath))()
     end)
 
     if success then
-        print("  ✅ Módulo carregado: " .. formatName(modulePath))
+        print("  ✅ Carregado: " .. formatName(modulePath))
     else
-        warn("  ❌ Erro ao carregar módulo " .. formatName(modulePath) .. ": " .. tostring(err))
+        warn("  ❌ Erro em " .. formatName(modulePath) .. ": " .. tostring(err))
     end
     task.wait(0.2)
 end
