@@ -1,5 +1,5 @@
 -- ============================================================================
--- MÓDULO: INTERFACE GRÁFICA (GUI) E INPUTS (ORGANIZADO AUTOMATICAMENTE)
+-- MÓDULO: INTERFACE GRÁFICA (GUI) E INPUTS (ORGANIZADO SEM SOBREPOSIÇÃO)
 -- Arquivo: modules/gui.lua
 -- ============================================================================
 
@@ -36,8 +36,8 @@ sg.Parent = guiParent
 
 local panel = Instance.new("Frame", sg)
 panel.Name = "MainPanel"
--- Ajustamos a largura para 210 para dar mais conforto aos textos longos
-panel.Size = UDim2.new(0, 210, 0, 315) 
+-- Altura dimensionada automaticamente para comportar todos os elementos perfeitamente empilhados
+panel.Size = UDim2.new(0, 210, 0, 340) 
 panel.Position = UDim2.new(0.05, 0, 0.3, 0)
 panel.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
 panel.BorderSizePixel = 0
@@ -58,18 +58,18 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 10
 title.TextXAlignment = Enum.TextXAlignment.Left
 
--- Usamos UIListLayout para organizar os elementos internos em ordem perfeita sem sobreposição
+-- UIListLayout garante que cada botão fique perfeitamente empilhado um abaixo do outro
 local listLayout = Instance.new("UIListLayout", panel)
 listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-listLayout.Padding = UDim.new(0, 5)
+listLayout.Padding = UDim.new(0, 6)
 listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
--- Padding interno para afastar das bordas do painel
+-- Padding para afastar das bordas do painel
 local padding = Instance.new("UIPadding", panel)
-padding.PaddingTop = UDim.new(0, 32) -- Deixa espaço limpo para o título fixo no topo
-padding.PaddingBottom = UDim.new(0, 8)
-padding.PaddingLeft = UDim.new(0, 8)
-padding.PaddingRight = UDim.new(0, 8)
+padding.PaddingTop = UDim.new(0, 34)
+padding.PaddingBottom = UDim.new(0, 10)
+padding.PaddingLeft = UDim.new(0, 10)
+padding.PaddingRight = UDim.new(0, 10)
 
 -- Tabela para guardar atualizadores visuais de botões
 local toggleUpdaters = {}
@@ -115,7 +115,7 @@ _G.SyncGUIToggle = function(stateKey)
     end
 end
 
--- Criação dos botões ordenados com segurança (sem conflito de pixels)
+-- Criação dos botões ordenados sequencialmente pelo LayoutOrder
 _G.CreateGUIToggle("ESP Player", 1, "espPlayer")
 _G.CreateGUIToggle("ESP Generator", 2, "espGenerator")
 _G.CreateGUIToggle("Progresso Gen (%)", 3, "generatorProgress")
@@ -123,9 +123,9 @@ _G.CreateGUIToggle("Aim Assist", 4, "aimBot")
 _G.CreateGUIToggle("FPS Boost", 5, "fpsBoost")
 _G.CreateGUIToggle("Veil Mode", 6, "veilMode")
 
--- Botão especial para a Keybind do Aim Assist (organizado automaticamente no final)
+-- Botão especial para a Keybind do Aim Assist (LayoutOrder 7 para ficar logo abaixo na fila)
 local bindBtn = Instance.new("TextButton", panel)
-bindBtn.Size = UDim2.new(1, 0, 0, 22)
+bindBtn.Size = UDim2.new(1, 0, 0, 24)
 bindBtn.Font = Enum.Font.Gotham
 bindBtn.TextSize = 9
 bindBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
@@ -203,4 +203,4 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-print("🖥️ Módulo GUI redesenhado e organizado com sucesso!")
+print("🖥️ Módulo GUI corrigido: Elementos organizados sem sobreposição!")
