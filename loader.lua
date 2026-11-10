@@ -16,7 +16,8 @@ local modulesToLoad = {
     "modules/gui.lua",
     "modules/espPlayer.lua",
     "modules/espGene.lua",
-    "modules/aimBot.lua"
+    "modules/aimBot.lua",
+    "modules/fpsBoost.lua" -- <-- Novo módulo adicionado
 }
 
 local function formatName(path)
