@@ -34,7 +34,7 @@ sg.Parent = guiParent
 
 local panel = Instance.new("Frame", sg)
 panel.Name = "MainPanel"
-panel.Size = UDim2.new(0, 190, 0, 240) -- Altura ajustada para caber os botões
+panel.Size = UDim2.new(0, 190, 0, 300) -- Altura ajustada para caber os botões
 panel.Position = UDim2.new(0.05, 0, 0.3, 0)
 panel.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
 panel.BorderSizePixel = 0
