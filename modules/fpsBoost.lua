@@ -1,5 +1,5 @@
 -- ============================================================================
--- MÓDULO OTIMIZADO: FPS BOOST + FULL BRIGHT + NO FOG
+-- MÓDULO OTIMIZADO: FPS BOOST + FULL BRIGHT + NO FOG (PERSISTENTE)
 -- Arquivo: modules/fpsBoost.lua
 -- ============================================================================
 
@@ -23,17 +23,13 @@ local originalLighting = {
 
 -- Função para aplicar o Boost, Full Bright e No Fog
 local function applyBoost()
-    print("⚡ [FPS Boost] Aplicando otimizações, Full Bright e No Fog...")
-
-    -- 1. Full Bright & No Fog (Iluminação máxima e remoção de neblina)
     pcall(function()
         Lighting.Brightness = 2
-        Lighting.ClockTime = 14 -- Trava o sol ao meio-dia para luz constante
+        Lighting.ClockTime = 14
         Lighting.GlobalShadows = false
         Lighting.OutdoorAmbient = Color3.fromRGB(200, 200, 200)
-        Lighting.FogEnd = 100000 -- Joga a neblina para infinitamente longe
+        Lighting.FogEnd = 100000
 
-        -- Desativa efeitos pesados de pós-processamento, atmosfera e skybox escura
         for _, child in ipairs(Lighting:GetChildren()) do
             if child:IsA("PostEffect") or child:IsA("Atmosphere") or child:IsA("Sky") then
                 child.Enabled = false
@@ -41,7 +37,6 @@ local function applyBoost()
         end
     end)
 
-    -- 2. Otimizar Texturas, Materiais e Partículas no Workspace
     pcall(function()
         for _, obj in ipairs(Workspace:GetDescendants()) do
             if obj:IsA("BasePart") then
@@ -58,7 +53,6 @@ end
 
 -- Função para restaurar o estado padrão da iluminação caso desative
 local function removeBoost()
-    print("⚡ [FPS Boost] Desativando otimizações (restaurando padrões)...")
     pcall(function()
         Lighting.Brightness = originalLighting.Brightness
         Lighting.ClockTime = originalLighting.ClockTime
@@ -74,17 +68,24 @@ local function removeBoost()
     end)
 end
 
--- Loop de verificação de estado conectado ao FeatureState da GUI
+-- Monitoramento contínuo para reaplicar o Full Bright/No Fog se o mapa recarregar
 RunService.Heartbeat:Connect(function()
     local currentEnabled = _G.FeatureState.fpsBoost
 
-    if currentEnabled and not wasEnabled then
+    if currentEnabled then
         wasEnabled = true
-        applyBoost()
+        -- Reaplica constantemente as propriedades de luz e neblina para combater resets de mapa
+        pcall(function()
+            Lighting.Brightness = 2
+            Lighting.ClockTime = 14
+            Lighting.GlobalShadows = false
+            Lighting.OutdoorAmbient = Color3.fromRGB(200, 200, 200)
+            Lighting.FogEnd = 100000
+        end)
     elseif not currentEnabled and wasEnabled then
         wasEnabled = false
         removeBoost()
     end
 end)
 
-print("🚀 Módulo FPS Boost (com Full Bright & No Fog) carregado!")
+print("🚀 Módulo FPS Boost (Persistente) carregado!")
